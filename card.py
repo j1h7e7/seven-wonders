@@ -239,7 +239,7 @@ class Card:
 
     @classmethod
     def base_blue_card(self, name, points, requirements, chain = []):
-        return self(name, Colors.blue, requirements, {'points': points}, chain)
+        return self(name, Colors.blue, requirements, {'points': points}, chain) # points for blue cards, VP for wonder
 
     @classmethod
     def base_purple_card(self, name, symbol, cost):
@@ -322,8 +322,7 @@ class Boards:
 if __name__ == "__main__":
     dealer = Deck()
 
-    for age in [1,2,3]:
-        print('Age',age)
-        for players in [3,4,5,6,7]:
-            deck = dealer.get_deck(players, age)
-            print('Players:',players,'| Expected:',players*7,'| Actual:',len(deck),'| Error:',players*7-len(deck))
+    deck = dealer.get_deck(7, 1)
+
+    for card in deck:
+        print(card.benefit)
