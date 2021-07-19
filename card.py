@@ -10,6 +10,9 @@ class Resource(Enum):
     glass = 12
     paper = 13
 
+Resources_T1 = [Resource.wood,Resource.ore,Resource.brick,Resource.stone]
+Resources_T2 = [Resource.cloth,Resource.glass,Resource.paper]
+
 class ChainIcon(Enum):
     hammer = 1
     water = 2

@@ -2,6 +2,9 @@ from card import *
 import itertools, copy
 from collections import Counter
 
+def issubset(x, y): # is x a subset of y
+    return not Counter(x)-Counter(y)
+
 class Player:
     def __init__(self):
         self.board = [] # which board/wonder you have
@@ -134,6 +137,7 @@ class Player:
         self.victory_points += bluepoints
         return bluepoints
 
+
     def can_play_free(self, cost):  # can we play it without buying from other players
         costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
         if len(costoptions) == 0: return True
@@ -163,13 +167,65 @@ class Player:
             choiceresources = [x for x in resourcesleft if len(x)>1] # choice stuff
             permutations = [x for x in itertools.product(*choiceresources)] # for some reason need to generate this out
 
-            if any(map(lambda x: not Counter(option)-Counter(x), permutations)): return True # wonky subset stuff
+            if any(map(lambda x: issubset(option,x), permutations)): return True # wonky subset stuff
 
             # no idea how to do this for buying stuff lol
             # maybe either minimizing the ingredients left or minimizing the cost
 
         return False
 
+    def can_play_help(self, cost):  # can we play it with help from neighbors
+        # assume that we have already checked if we can play it for free
+        if self.can_play_free(cost): return [0,0]
+
+        costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
+
+        mincost = 100
+        price = [0,0]   # amount to left, right neighbor
+
+        for option in costoptions:
+            # ignore if coins/chain:
+            if "coins" in option: continue
+            if isinstance(option[0], ChainIcon): continue
+
+            resourcesleft = [x for x in self.resources]
+            # first removes the things we can do 1:1
+            for ingredient in [x for x in option]: # have to make a copy so we can delete elements
+                if [ingredient] in resourcesleft:
+                    resourcesleft.remove([ingredient])
+                    option.remove(ingredient)
+
+            choiceresources = [x for x in resourcesleft if len(x)>1] # choice stuff
+            leftresources = [x+[None] for x in self.left_neighbor.resources]
+            rightresources = [x+[None] for x in self.right_neighbor.resources]
+
+            selfpermutations = [x for x in itertools.product(*choiceresources)] # for some reason need to generate this out
+            leftpermutations = [x for x in itertools.product(*leftresources)]
+            rightpermutations = [x for x in itertools.product(*rightresources)]
+
+            for allocation1 in selfpermutations:
+                for allocation2 in leftpermutations:
+                    for allocation3 in rightpermutations:
+                        if not issubset(option, allocation1+allocation2+allocation3): continue # doesn't meet requirements
+
+                        L_T1 = len([x for x in allocation2 if x in Resources_T1])
+                        L_T2 = len([x for x in allocation2 if x in Resources_T2])
+                        R_T1 = len([x for x in allocation3 if x in Resources_T1])
+                        R_T2 = len([x for x in allocation3 if x in Resources_T2])
+
+                        leftprice = L_T1 * (1 if Symbols.basic_trade_left in self.symbols else 2) + \
+                                    L_T2 * (1 if Symbols.adv_trade_both in self.symbols else 2)
+                        rightprice = R_T1 * (1 if Symbols.basic_trade_right in self.symbols else 2) + \
+                                     R_T2 * (1 if Symbols.adv_trade_both in self.symbols else 2)
+
+                        if leftprice+rightprice < mincost:
+                            mincost = leftprice+rightprice
+                            price = [leftprice, rightprice]
+
+                     
+        if mincost < 100: return price
+
+        return False
             
 
     def play_card(self, card):
@@ -221,7 +277,8 @@ class Player:
             print('NYI sorry')
         
 
-if __name__ == "__main__":
+def solo_tests():
+    print("Starting solo tests")
     player = Player()
     
     # test 1
@@ -232,6 +289,7 @@ if __name__ == "__main__":
     assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
     assert player.can_play_free([[Resource.ore]]) == False
     assert player.can_play_free([[Resource.ore],[Resource.wood]]) == True
+    print("Basic tests passed")
 
     # test 2
     player.resources = [[Resource.stone,Resource.wood],[Resource.wood,Resource.ore]]
@@ -239,6 +297,7 @@ if __name__ == "__main__":
     assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
     assert player.can_play_free([[Resource.wood,Resource.ore]]) == True
     assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
+    print("Choice tests passed")
 
     # test 3
     player.resources = []
@@ -249,5 +308,43 @@ if __name__ == "__main__":
     assert player.can_play_free([{"coins":2}]) == False
     assert player.can_play_free([[ChainIcon.camel]]) == True
     assert player.can_play_free([[ChainIcon.torch]]) == False
+    print("Special tests passed")
 
-    print("All tests passed")
+    print("All solo tests passed")
+
+def multiplayer_tests():
+    print("Starting multiplayer tests")
+    player = Player()
+    left = Player()
+    right = Player()
+    player.left_neighbor = left
+    player.right_neighbor = right
+
+    # test 1
+    player.resources = []
+    left.resources = [[Resource.stone]]
+    right.resources = [[Resource.wood]]
+    assert player.can_play_help([[Resource.stone]]) == [2,0]
+    assert player.can_play_help([[Resource.wood]]) == [0,2]
+    assert player.can_play_help([[Resource.stone,Resource.wood]]) == [2,2]
+    assert player.can_play_help([[Resource.ore]]) == False
+    print("Basic tests passed")
+
+    # test 2
+    player.resources = []
+    left.resources = [[Resource.stone]]
+    right.resources = [[Resource.stone,Resource.wood]]
+    player.symbols = [Symbols.basic_trade_left]
+    assert player.can_play_help([[Resource.stone]]) == [1,0]
+    assert player.can_play_help([[Resource.stone,Resource.stone]]) == [1,2]
+    assert player.can_play_help([[Resource.wood]]) == [0,2]
+    print("Cost tests passed")
+
+    print("All multiplayer tests passed")
+
+if __name__ == "__main__":
+    solo_tests()
+    print()
+    multiplayer_tests()
+
+
