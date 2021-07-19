@@ -141,7 +141,7 @@ class Card:
         # age 3 reds
         if name == 'Castrum':           return self.base_red_card(name, 3, [[Resource.brick]*2+[Resource.wood,Resource.paper]])
         if name == 'Siege Workshop':    return self.base_red_card(name, 3, [[Resource.brick]*3+[Resource.wood], [ChainIcon.saw]])
-        if name == 'Fortification':     return self.base_red_card(name, 3, [[Resource.ore]*3+[Resource.brick], [ChainIcon.wall]])
+        if name == 'Fortifications':    return self.base_red_card(name, 3, [[Resource.ore]*3+[Resource.brick], [ChainIcon.wall]])
         if name == 'Arsenal':           return self.base_red_card(name, 3, [[Resource.ore]*2+[Resource.wood,Resource.cloth]])
         if name == 'Circus':            return self.base_red_card(name, 3, [[Resource.stone]*3+[Resource.ore], [ChainIcon.soldier]])
 
@@ -295,13 +295,28 @@ class Deck:
             if players >= 7: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_7_age2])
 
         if age is 3:
-            if players >= 3: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_3_age2])
-            if players >= 4: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_4_age2])
-            if players >= 5: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_5_age2])
-            if players >= 6: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_6_age2])
-            if players >= 7: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_7_age2])
+            if players >= 3: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_3_age3])
+            if players >= 4: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_4_age3])
+            if players >= 5: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_5_age3])
+            if players >= 6: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_6_age3])
+            if players >= 7: deck.extend([Card.card_by_name(cardname) for cardname in self.cards_7_age3])
 
         return sorted(deck)
+
+
+class Boards:
+    def __init__(self):
+        self.base_board = {'starting': Resource.wood, 'wonder': [
+            {'cost': [Resource.stone]*2, 'reward': {'VP':3}},
+            {'cost': [Resource.brick]*3, 'reward': {'VP':5}},
+            {'cost': [Resource.ore]*4, 'reward': {'VP':7}}
+        ]}
+
+        self.example_board = {'starting': Resource.paper, 'wonder': [
+            {'cost': [Resource.wood,Resource.brick], 'reward': {'VP':1,'coins':3}},
+            {'cost': [Resource.glass,Resource.stone,Resource.ore], 'reward': {'symbol':Symbols.play_discard_free}},
+            {'cost': [Resource.cloth]*3, 'reward': {'swords':3}}
+        ]}
 
 
 if __name__ == "__main__":
