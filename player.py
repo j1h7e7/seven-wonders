@@ -1,4 +1,6 @@
 from card import *
+import itertools, copy
+from collections import Counter
 
 class Player:
     def __init__(self):
@@ -132,6 +134,44 @@ class Player:
         self.victory_points += bluepoints
         return bluepoints
 
+    def can_play_free(self, cost):  # can we play it without buying from other players
+        costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
+        if len(costoptions) == 0: return True
+
+        for option in costoptions:
+            # first check coins:
+            if "coins" in option:
+                if self.coins >= option['coins']: return True
+                else: continue
+
+            # then check chains
+            if isinstance(option[0], ChainIcon):
+                if option[0] in self.chains: return True
+                else: continue
+
+            resourcesleft = [x for x in self.resources]
+            # first removes the things we can do 1:1
+            for ingredient in [x for x in option]: # have to make a copy so we can delete elements
+                if [ingredient] in resourcesleft:
+                    resourcesleft.remove([ingredient])
+                    option.remove(ingredient)
+
+            if len(option) == 0: return True # if we easily satisfied everything
+
+            if len(option) > len(resourcesleft): return False # easy fast check
+
+            choiceresources = [x for x in resourcesleft if len(x)>1] # choice stuff
+            permutations = [x for x in itertools.product(*choiceresources)] # for some reason need to generate this out
+
+            if any(map(lambda x: not Counter(option)-Counter(x), permutations)): return True # wonky subset stuff
+
+            # no idea how to do this for buying stuff lol
+            # maybe either minimizing the ingredients left or minimizing the cost
+
+        return False
+
+            
+
     def play_card(self, card):
         self.buildings.append(card.name)
         self.cards_by_color[card.color] += 1
@@ -180,3 +220,34 @@ class Player:
         if symbol == Symbols.play_discard_free:
             print('NYI sorry')
         
+
+if __name__ == "__main__":
+    player = Player()
+    
+    # test 1
+    player.resources = [[Resource.stone],[Resource.wood]]
+    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player.can_play_free([[Resource.stone]]) == True
+    assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
+    assert player.can_play_free([[Resource.ore]]) == False
+    assert player.can_play_free([[Resource.ore],[Resource.wood]]) == True
+
+    # test 2
+    player.resources = [[Resource.stone,Resource.wood],[Resource.wood,Resource.ore]]
+    assert player.can_play_free([[Resource.stone,Resource.ore]]) == True
+    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player.can_play_free([[Resource.wood,Resource.ore]]) == True
+    assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
+
+    # test 3
+    player.resources = []
+    player.coins = 1
+    player.chains = [ChainIcon.camel]
+    assert player.can_play_free([{"coins":1}]) == True
+    assert player.can_play_free([{"coins":1},[Resource.wood]]) == True
+    assert player.can_play_free([{"coins":2}]) == False
+    assert player.can_play_free([[ChainIcon.camel]]) == True
+    assert player.can_play_free([[ChainIcon.torch]]) == False
+
+    print("All tests passed")
