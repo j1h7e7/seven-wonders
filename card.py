@@ -1,5 +1,7 @@
 from enum import Enum
 
+class IllegalAction(Exception): pass
+
 class Resource(Enum):
     wood =  1
     ore =   2
@@ -150,7 +152,7 @@ class Card:
 
         # blues
         if name == 'Altar':             return self.base_blue_card(name, 3, [], chain=[ChainIcon.altar])
-        if name == 'Baths':             return self.base_blue_card(name, 3, [Resource.stone], chain=[ChainIcon.water])
+        if name == 'Baths':             return self.base_blue_card(name, 3, [[Resource.stone]], chain=[ChainIcon.water])
         if name == 'Theater':           return self.base_blue_card(name, 3, [], chain=[ChainIcon.theater])
         if name == 'Well':              return self.base_blue_card(name, 3, [], chain=[ChainIcon.hammer]) # not sure
 

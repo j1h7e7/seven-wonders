@@ -6,13 +6,17 @@ def issubset(x, y): # is x a subset of y
     return not Counter(x)-Counter(y)
 
 class Player:
-    def __init__(self):
+    def __init__(self, name='Player', debug=False):
         self.board = [] # which board/wonder you have
         self.buildings = [] # cards that have been played
         self.symbols = [] # special symbols
         self.resources = [] # resources
         self.chains = [] # chain icons
-        self.science = [] # science
+        self.science = {
+            Science.tablet: 0,
+            Science.wheel: 0,
+            Science.compass: 0
+        } # science
         self.military = [] # military victories and defeats
         self.blues = [] # blue card points
 
@@ -38,35 +42,38 @@ class Player:
         # card stuff for resolution
         self.effect_to_resolve = None
 
+        self.name = name
+        self.debug = debug
+
     def _count_players_color(self, players, colors):
         count = 0
         for player in players:
             for color in colors:
                 count += player.cards_by_color[color]
 
-        return color
+        return count
 
     def calculate_victory_points(self):
         self.victory_points = 0
-        self._VP_science()
-        self._VP_coins()
-        self._VP_symbols()
-        self._VP_military()
-        self._VP_wonder()
-        self._VP_blues()
+        breakdown = {
+            'science': self._VP_science(),
+            'coins': self._VP_coins(),
+            'symbols': self._VP_symbols(),
+            'military': self._VP_military(),
+            'wonder': self._VP_wonder(),
+            'blues': self._VP_blues()
+        }
+        if self.debug: print(self.name,breakdown)
+
         return self.victory_points
 
     def _VP_science(self):
-        count = {Science.compass:0, Science.tablet:0, Science.wheel:0}
-        
-        for sciencetype in self.science:
-            count[sciencetype] += 1
-
+        count = copy.deepcopy(self.science)
         bestscience = max(count, key=lambda x: count[x])
 
         for x in [symbol for symbol in self.symbols if symbol == Symbols.any_science]:
             count[bestscience]+=1
-        
+
         sciencepoints = sum([count[x]**2 for x in count])
         self.victory_points += sciencepoints
 
@@ -120,7 +127,7 @@ class Player:
 
     def _VP_military(self):
         militarypoints = sum(self.military)
-        victory_points += militarypoints
+        self.victory_points += militarypoints
         return militarypoints
 
     def _VP_wonder(self):
@@ -138,7 +145,7 @@ class Player:
         return bluepoints
 
 
-    def can_play_free(self, cost):  # can we play it without buying from other players
+    def _can_play_free(self, cost):  # can we play it without buying from other players
         costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
         if len(costoptions) == 0: return True
 
@@ -174,9 +181,7 @@ class Player:
 
         return False
 
-    def can_play_help(self, cost):  # can we play it with help from neighbors
-        # assume that we have already checked if we can play it for free
-        if self.can_play_free(cost): return [0,0]
+    def _can_play_help(self, cost):  # can we play it with help from neighbors
 
         costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
 
@@ -195,9 +200,28 @@ class Player:
                     resourcesleft.remove([ingredient])
                     option.remove(ingredient)
 
-            choiceresources = [x for x in resourcesleft if len(x)>1] # choice stuff
-            leftresources = [x+[None] for x in self.left_neighbor.resources]
-            rightresources = [x+[None] for x in self.right_neighbor.resources]
+            def prepare(thing,addnone=False):
+                return [x for x in thing if x in option] + [None] if addnone else []
+            def clean(thing):
+                cleaned = []
+                for x in thing:
+                    if x not in cleaned and x != [] and x != [None]: cleaned.append(x)
+                return cleaned
+
+            choiceresources = clean([prepare(x) for x in resourcesleft if len(x)>1])
+            leftresources = clean([prepare(x,True) for x in self.left_neighbor.resources])
+            rightresources = clean([prepare(x,True) for x in self.right_neighbor.resources])
+
+            allavailableresources = set().union(*choiceresources,*leftresources,*rightresources)
+            if not all([x in allavailableresources for x in option]): return False
+
+            #print(choiceresources,leftresources,rightresources)
+            #print(option)
+
+            for resource in option:
+                if len([x for x in choiceresources+leftresources+rightresources if resource in x])<=len([y for y in option if y==resource]):
+                    for x in choiceresources+leftresources+rightresources:
+                        if resource in x: x = [resource]
 
             selfpermutations = [x for x in itertools.product(*choiceresources)] # for some reason need to generate this out
             leftpermutations = [x for x in itertools.product(*leftresources)]
@@ -223,20 +247,65 @@ class Player:
                             price = [leftprice, rightprice]
 
                      
-        if mincost < 100: return price
-
+        if mincost < 100:
+            return price
+        
         return False
-            
+    
+
+    def _can_play(self, cost):
+        if self._can_play_free(cost): return True
+        details = self._can_play_help(cost)
+        if details == False: return False
+        else: return sum(details)<=self.coins
+
+    def _pay_cost(self, cost):
+        if self._can_play_free(cost): return
+
+        playcost = self._can_play_help(cost)
+        if self.debug: print(self.name,"paid",playcost)
+        self.coins -= sum(playcost)
+        self.left_neighbor.coins += playcost[0]
+        self.right_neighbor.coins += playcost[1]
+
+    def can_play_card(self, card):
+        return self._can_play(card.cost)
+
+    def can_upgrade_wonder(self):
+        if self.wonder_stages >= len(self.board): return False
+        cost = [self.board[self.wonder_stages]['cost']]
+        return self._can_play(cost)
 
     def play_card(self, card):
+        if not self.can_play_card(card): raise IllegalAction("Could not afford to play this card")
+
+        if self.debug: print(self.name,"played",card)
+
+        self._pay_cost(card.cost)
+
         self.buildings.append(card.name)
         self.cards_by_color[card.color] += 1
         self.chains.extend(card.chain)
 
         self.effect_to_resolve = card.benefit
 
+    def build_wonder(self):
+        if not self.can_upgrade_wonder(): raise IllegalAction("Could not afford to build this wonder")
+
+        if self.debug: print(self.name,"upgraded their wonder")
+
+        self._pay_cost([self.board[self.wonder_stages]['cost']])
+        self.wonder_stages += 1
+        self.effect_to_resolve = self.board[self.wonder_stages-1]['reward']
+
+    def sell_card(self, card):
+        if self.debug: print(self.name,"sold",card)
+
+        self.coins += 3
+
     def resolve_effect(self):
         effect = self.effect_to_resolve
+        if effect == None: return
 
         if 'resource' in effect:
             self.resources.extend(effect['resource'])
@@ -257,19 +326,19 @@ class Player:
             self.symbols.append(symbol)
 
         if symbol == Symbols.coins1_brown_all:
-            self.coins += self._count_players_color([self,self.right_neighbor,self.left_neighbor], Colors.brown)
+            self.coins += self._count_players_color([self,self.right_neighbor,self.left_neighbor], [Colors.brown])
         if symbol == Symbols.coins2_gray_all:
-            self.coins += 2*self._count_players_color([self,self.right_neighbor,self.left_neighbor], Colors.gray)
+            self.coins += 2*self._count_players_color([self,self.right_neighbor,self.left_neighbor], [Colors.gray])
 
         if symbol == Symbols.coins1_VP1_brown_self:
-            self.coins += self._count_players_color([self], Colors.brown)
+            self.coins += self._count_players_color([self], [Colors.brown])
         if symbol == Symbols.coins1_VP1_yellow_self:
-            self.coins += self._count_players_color([self], Colors.yellow)
-        if symbol == Symbol.coins2_VP2_gray_self:
-            self.coins += 2*self._count_players_color([self], Colors.gray)
-        if symbol == Symbol.coins3_VP1_red_self:
-            self.coins += 3*self._count_players_color([self], Colors.red)
-        if symbol == Symbol.coins3_VP1_wonder_self:
+            self.coins += self._count_players_color([self], [Colors.yellow])
+        if symbol == Symbols.coins2_VP2_gray_self:
+            self.coins += 2*self._count_players_color([self], [Colors.gray])
+        if symbol == Symbols.coins3_VP1_red_self:
+            self.coins += 3*self._count_players_color([self], [Colors.red])
+        if symbol == Symbols.coins3_VP1_wonder_self:
             self.coins += 3*self.wonder_stages
 
         # TODO: all this stuff:
