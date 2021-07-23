@@ -184,7 +184,7 @@ class Game():
             An integer from the action space.
         """
         choice = input(
-            f"Enter an action for player: {self.to_play()}: "
+            f"Enter an action for player: {self.to_play()}; their possible actions are: {actions_to_card_names(self.legal_actions)}, which are represented as: {self.legal_actions}"
         )
         while choice not in [str(action) for action in self.legal_actions()]:
             choice = input("Enter an action: ")
@@ -210,13 +210,12 @@ class Game():
         return self.env.random_action()
 
 ##############################################################################################################
-# TODO: make function that takes array of card names and returns equivalent array of the number representation of the cards and vise versa
 
-def cards_to_actions(cards):
-    possilbe_actions = []
-    for card in cards:
-        possilbe_actions.append(actions.index(card.name))
-    return possilbe_actions
+def actions_to_card_names(actions_given):
+    cards = []
+    for action in actions_given:
+        cards.append(actions[action])
+    return cards
 
 def names_of_cards_to_actions(cards):
     possilbe_actions = []
@@ -277,7 +276,7 @@ class Seven_Wonders:
         # if at the end of the players, play the turn
         # play for other non-muzero players
         self.current_player += 1
-        while not self.current_player == 0 or not self.current_player == 1:
+        while not self.current_player == 0 and not self.current_player == 1:
             # puts random action in queue for that player
             self.action_queue[self.current_player] = self.get_card_from_action(self.random.choice(self.legal_actions()))
             self.current_player += 1
@@ -292,7 +291,11 @@ class Seven_Wonders:
             done = self.new_age()
             self.turn_num = 0
             if done:
-                reward = self.players[self.current_player].calculate_victory_points()
+                total_points = 0
+                for i in range(self.num_players):
+                    if not i == self.current_player:
+                        total_points += self.players[i].calculate_victory_points()
+                reward = self.players[self.current_player].calculate_victory_points() - (total_points/(self.num_players-1))
 
         # do observation space
         observation = self.get_observation()
@@ -401,6 +404,7 @@ class Seven_Wonders:
         self.current_age += 1
 
         self.direction = (1 if self.current_age == 2 else -1)
+        self.setting_up = False
 
         return self.current_age == 4
 
@@ -444,8 +448,9 @@ class Seven_Wonders:
         self.__init__(self.seed)
         return self.get_observation()
 
-    # TODO: render hands too
     def render(self):
-        for player in self.players:
-            print("player " + str(self.players.index(player)) + " has:")
-            print(player.buildings)
+        for i in range(self.num_players):
+            print("player " + str(i) + " 's board is:")
+            print(self.players[i].buildings)
+            print("and their hand is: ")
+            print(self.get_player_hand(i))
