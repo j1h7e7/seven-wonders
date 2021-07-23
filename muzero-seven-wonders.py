@@ -454,3 +454,6 @@ class Seven_Wonders:
             print(self.players[i].buildings)
             print("and their hand is: ")
             print(self.get_player_hand(i))
+
+    def close(self):
+        pass
