@@ -450,7 +450,7 @@ class Seven_Wonders:
 
     def render(self):
         for i in range(self.num_players):
-            print("player " + str(i) + " 's board is:")
+            print(f"player {str(i)} has {self.players[i].coins} coins and their board is:")
             print(self.players[i].buildings)
             print("and their hand is: ")
             print(self.get_player_hand(i))
