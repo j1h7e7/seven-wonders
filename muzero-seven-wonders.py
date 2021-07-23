@@ -19,9 +19,9 @@ class MuZeroConfig:
         self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
         ### Game
-        self.observation_shape = (1, 7, len(actions)+1)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.observation_shape = (1, 5, len(actions)+1)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(len(actions)))  # Fixed list of all possible actions. You should only edit the length
-        self.players = list(range(7))  # List of players. You should only edit the length
+        self.players = list(range(2))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
         # Evaluate
@@ -31,7 +31,7 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 2  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
-        self.max_moves = 150  # Maximum number of moves if game is not finished before
+        self.max_moves = 500  # Maximum number of moves if game is not finished before
         self.num_simulations = 40  # Number of future moves self-simulated
         self.discount = 1  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
@@ -72,8 +72,8 @@ class MuZeroConfig:
                                          os.path.basename(__file__)[:-3], datetime.datetime.now().strftime(
                 "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
-        self.training_steps = 10000  # Total number of training steps (ie weights update according to a batch)
-        self.batch_size = 512  # Number of parts of games to train on at each training step
+        self.training_steps = 100000  # Total number of training steps (ie weights update according to a batch)
+        self.batch_size = 5  # Number of parts of games to train on at each training step
         self.checkpoint_interval = 50  # Number of training steps before using the model for self-playing
         self.value_loss_weight = 1  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
         self.train_on_gpu = True if torch.cuda.is_available() else False  # Train on GPU if available
@@ -213,15 +213,21 @@ class Game():
 # TODO: make function that takes array of card names and returns equivalent array of the number representation of the cards and vise versa
 
 def cards_to_actions(cards):
-    actions = []
+    possilbe_actions = []
     for card in cards:
-        actions.append(cards.index(card.name))
-    return actions
+        possilbe_actions.append(actions.index(card.name))
+    return possilbe_actions
+
+def names_of_cards_to_actions(cards):
+    possilbe_actions = []
+    for card in cards:
+        possilbe_actions.append(actions.index(card))
+    return possilbe_actions
 
 def create_observation_space(buildings):
     observation = numpy.zeros(len(actions))
-    for building in buildings:
-        observation[building] += 1
+    for i in range(len(buildings)):
+        observation[i] = buildings[i]
     return numpy.ndarray.tolist(observation)
 
 class Seven_Wonders:
@@ -229,14 +235,16 @@ class Seven_Wonders:
         self.seed = seed
         self.random = numpy.random.RandomState(seed)
         self.current_player = 0
-        self.num_players = 7
+        self.num_players = 5
         self.dealer = Deck()
         self.boards = Boards()
         self.hands = []
         self.players = []
-        self.current_age = 1
+        self.current_age = 0
+        self.setting_up = True
         self.direction = -1
         self.turn_num = 0
+        self.action_queue = {}
         for i in range(self.num_players):
             self.players.append(Player())
 
@@ -255,37 +263,34 @@ class Seven_Wonders:
         self.hands = [[] for _ in range(self.num_players)]
         self.random.shuffle(deck)
 
+        self.new_age()
+
     def step(self, action):
         observation = []
         reward = 0
-
-        # setup action queue
-        action_queue = {}
-        for i in range(self.num_players):
-            action_queue[i] = []
+        done = False
 
         # puts action into queue
-
-        # either selling or building
-        if action == 0 or action == 1:
-            card_played = actions[action]
-        else:
-            for card in self.get_player_hand(self.current_player):
-                if card.name == actions[action]:
-                    card_played = card
-        action_queue[self.current_player] = card_played
+        self.action_queue[self.current_player] = self.get_card_from_action(action)
 
         # swap players
         # if at the end of the players, play the turn
+        # play for other non-muzero players
         self.current_player += 1
-        if self.current_player > self.num_players:
-            self.current_player = 0
-            self.play_turn(action_queue)
-        
+        while not self.current_player == 0 or not self.current_player == 1:
+            # puts random action in queue for that player
+            self.action_queue[self.current_player] = self.get_card_from_action(self.random.choice(self.legal_actions()))
+            self.current_player += 1
+            if self.current_player >= self.num_players:
+                self.current_player = 0
+                self.play_turn(self.action_queue)
+                self.turn_num += 1
+                break
+
         # see if end of age
-        self.turn_num += 1
         if self.turn_num == 6:
             done = self.new_age()
+            self.turn_num = 0
             if done:
                 reward = self.players[self.current_player].calculate_victory_points()
 
@@ -307,7 +312,6 @@ class Seven_Wonders:
         # if end of age, do military stuff, deal new hands, ect
         # if end of game, calc wins
         
-        observation, reward, done = self.env.step(action)
         return observation, reward, done
 
     # obersvation: [
@@ -326,16 +330,26 @@ class Seven_Wonders:
             to_append = []
             # for other players
             if not i == self.current_player:
-                to_append = create_observation_space(cards_to_actions(self.get_player_hand(i)))
+                to_append = create_observation_space(names_of_cards_to_actions(self.players[i].buildings))
                 to_append.append(self.players[i].coins)
                 observation.append(to_append)
             # for you
             else:
-                your_board = create_observation_space(cards_to_actions(self.players[i].buildings))
+                your_board = create_observation_space(names_of_cards_to_actions(self.players[i].buildings))
                 your_board.append(self.players[i].coins)
-        print(observation[0])
         observation.append(your_board)
         return [observation]
+
+    def get_card_from_action(self, action):
+        # either selling or building
+        if action == 0 or action == 1:
+            card_played = actions[action]
+        # normal playing
+        else:
+            for card in self.get_player_hand(self.current_player):
+                if card.name == actions[action]:
+                    card_played = card
+        return card_played
 
     def get_player_hand(self, index):
         return self.hands[(index+self.turn_num*self.direction) % self.num_players]
@@ -356,7 +370,7 @@ class Seven_Wonders:
                 if action_queue[i] == "sell":
                     self.players[i].sell_card(card)
                 elif action_queue[i] == "build":
-                    self.players[i].build_wonder(card)
+                    self.players[i].build_wonder()
                 action_queue[i] = card
             # call play_card if that
             else:
@@ -364,24 +378,30 @@ class Seven_Wonders:
             # delete card from hand
             self.get_player_hand(i).remove(action_queue[i])
 
+        self.action_queue = {}
+
         for player in self.players:
             player.resolve_effect()
 
     # returns true of game is ended
     def new_age(self):
-        deck = self.dealer.get_deck(self.num_players, self.current_age)
+        if self.setting_up:
+            deck = self.dealer.get_deck(self.num_players, 1)
+        else:
+            deck = self.dealer.get_deck(self.num_players, self.current_age)
         self.hands = [[] for _ in range(self.num_players)]
         self.random.shuffle(deck)
 
         for hand in self.hands:
             for i in range(7): hand.append(deck.pop())
 
-        self.direction = (1 if self.current_age == 2 else -1)
-
-        if not self.current_age == 1:
+        if not self.setting_up:
             self.do_military(self.current_age)
 
         self.current_age += 1
+
+        self.direction = (1 if self.current_age == 2 else -1)
+
         return self.current_age == 4
 
     def to_play(self):
@@ -423,3 +443,9 @@ class Seven_Wonders:
         """
         self.__init__(self.seed)
         return self.get_observation()
+
+    # TODO: render hands too
+    def render(self):
+        for player in self.players:
+            print("player " + str(self.players.index(player)) + " has:")
+            print(player.buildings)
