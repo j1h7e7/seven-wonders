@@ -2,6 +2,12 @@ from card import *
 from game import *
 from player import Player
 import numpy
+import datetime
+import os
+import numpy
+import torch
+from .abstract_game import AbstractGame
+import random
 
 actions = ['sell', 'build', 'Arsenal', 'Craftsmens Guild', 'Altar', 'Sawmill', 'Glassworks', 'East Trading Post', 'Well', 'Traders Guild', 'Marketplace', 'Mine', 'Press', 'Scientists Guild', 'School', 'Lodge', 'Dispensary', 'Fortifications', 'Baths', 'Caravansery', 'Foundry', 'Ludus', 'Decorators Guild', 'Barracks', 'Statue', 'Lighthouse', 'Clay Pool', 'Brickyard', 'Stockade', 'Walls', 'Scriptorium', 'Forum', 'Clay Pit', 'Library', 'Excavation', 'Stables', 'Archery Range', 'Philosophers Guild', 'Siege Workshop', 'Palace', 'Ore Vein', 'Chamber of Commerce', 'Workshop', 'Lumber Yard', 'Guard Tower', 'Spies Guild', 'Arena', 'Study', 'Training Ground', 'Pantheon', 'Builders Guild', 'Forest Cave', 'Courthouse', 'Academy', 'Theater', 'Magistrates Guild', 'Workers Guild', 'Shipowners Guild', 'University', 'Tavern', 'Observatory', 'Tree Farm', 'Circus', 'Vineyard', 'Aqueduct', 'Temple', 'Town Hall', 'Bazar', 'Haven', 'Laboratory', 'Stone Pit', 'Senate', 'Gardens', 'Apothecary', 'Loom', 'Quarry', 'Castrum', 'Timber Yard', 'West Trading Post']
 
@@ -14,7 +20,7 @@ class MuZeroConfig:
 
         ### Game
         self.observation_shape = (1, 7, 2)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.action_space = list(len(actions))  # Fixed list of all possible actions. You should only edit the length
+        self.action_space = list(range(len(actions)))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(7))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
@@ -92,6 +98,10 @@ class MuZeroConfig:
         self.use_last_model_value = False  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
         self.reanalyse_device = "cpu"  # "cpu" / "cuda"
         self.reanalyse_num_gpus = 0  # Number of GPUs to use for the reanalyse, it can be fractional, don't fortget to take the train worker and the selfplay workers into account
+
+        # Reanalyze (See paper appendix Reanalyse)
+        self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
+        self.reanalyse_on_gpu = False
 
         ### Adjust the self play / training ratio to avoid over/underfitting
         self.self_play_delay = 0  # Number of seconds to wait after each played game
@@ -210,6 +220,7 @@ def cards_to_actions(cards):
 
 class Seven_Wonders:
     def __init__(self, seed):
+        self.seed = seed
         self.random = numpy.random.RandomState(seed)
         self.current_player = 0
         self.num_players = 7
@@ -233,6 +244,10 @@ class Seven_Wonders:
         for player in self.players:
             player.board = self.boards.base_board['wonder']
             player.resources = [[self.boards.base_board['starting']]]
+
+        deck = self.dealer.get_deck(self.num_players, self.current_age)
+        self.hands = [[] for _ in range(self.num_players)]
+        self.random.shuffle(deck)
 
     def step(self, action):
         observation = []
@@ -312,21 +327,21 @@ class Seven_Wonders:
                 your_board.append(cards_to_actions(self.players[i].buildings))
                 your_board.append(self.players[i].coins)
         observation.append(your_board)
-        return observation
+        return [observation]
 
     def get_player_hand(self, index):
-        return self.hands[(index+self.turnnum*self.direction) % self.numplayers]
+        return self.hands[(index+self.turn_num*self.direction) % self.num_players]
 
     def do_military(self, agenum):
-        for i in range(self.numplayers):
+        for i in range(self.num_players):
             for direction in [-1,+1]:
-                if self.players[i].swords < self.players[(i+direction) % self.numplayers].swords:
+                if self.players[i].swords < self.players[(i+direction) % self.num_players].swords:
                     self.players[i].military.append(-1)
-                if self.players[i].swords > self.players[(i+direction) % self.numplayers].swords:
+                if self.players[i].swords > self.players[(i+direction) % self.num_players].swords:
                     self.players[i].military.append(agenum*2-1)
 
     def play_turn(self, action_queue):
-        for i in range(self.numplayers):
+        for i in range(self.num_players):
             # if chose to sell or build, deal with that
             if action_queue[i] == "sell" or action_queue[i] == "build":
                 card = self.random.choice(self.get_player_hand(i))
@@ -345,21 +360,21 @@ class Seven_Wonders:
             player.resolve_effect()
 
     # returns true of game is ended
-    def new_age(self, agenum):
-        deck = self.dealer.get_deck(self.numplayers, agenum)
-        self.hands = [[] for _ in range(self.numplayers)]
+    def new_age(self):
+        deck = self.dealer.get_deck(self.num_players, self.current_age)
+        self.hands = [[] for _ in range(self.num_players)]
         self.random.shuffle(deck)
 
         for hand in self.hands:
             for i in range(7): hand.append(deck.pop())
 
-        self.direction = (1 if agenum == 2 else -1)
+        self.direction = (1 if self.current_age == 2 else -1)
 
-        if not agenum == 1:
-            self.do_military(agenum)
+        if not self.current_age == 1:
+            self.do_military(self.current_age)
 
-        agenum += 1
-        return agenum == 4
+        self.current_age += 1
+        return self.current_age == 4
 
     def to_play(self):
         """
@@ -398,5 +413,5 @@ class Seven_Wonders:
         Returns:
             Initial observation of the game.
         """
-        self.__init__()
+        self.__init__(self.seed)
         return self.get_observation()
