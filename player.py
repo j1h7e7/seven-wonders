@@ -202,10 +202,15 @@ class Player:
 
             def prepare(thing,addnone=False):
                 return [x for x in thing if x in option] + [None] if addnone else []
+            
             def clean(thing):
                 cleaned = []
-                for x in thing:
-                    if x not in cleaned and x != [] and x != [None]: cleaned.append(x)
+                for producer in thing:
+                    if producer != [] and producer != [None]:
+                        countsame = len([x for x in cleaned if x==producer])   # number of things that look just like this
+                        maxsame = len([res for res in option if res in producer])
+
+                        if countsame < maxsame: cleaned.append(producer)
                 return cleaned
 
             choiceresources = clean([prepare(x) for x in resourcesleft if len(x)>1])
@@ -218,6 +223,7 @@ class Player:
             #print(choiceresources,leftresources,rightresources)
             #print(option)
 
+            # checks each resource to see if you need to pick it
             for resource in option:
                 if len([x for x in choiceresources+leftresources+rightresources if resource in x])<=len([y for y in option if y==resource]):
                     for x in choiceresources+leftresources+rightresources:
@@ -352,31 +358,31 @@ def solo_tests():
     
     # test 1
     player.resources = [[Resource.stone],[Resource.wood]]
-    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
-    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
-    assert player.can_play_free([[Resource.stone]]) == True
-    assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
-    assert player.can_play_free([[Resource.ore]]) == False
-    assert player.can_play_free([[Resource.ore],[Resource.wood]]) == True
+    assert player._can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player._can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player._can_play_free([[Resource.stone]]) == True
+    assert player._can_play_free([[Resource.stone,Resource.stone]]) == False
+    assert player._can_play_free([[Resource.ore]]) == False
+    assert player._can_play_free([[Resource.ore],[Resource.wood]]) == True
     print("Basic tests passed")
 
     # test 2
     player.resources = [[Resource.stone,Resource.wood],[Resource.wood,Resource.ore]]
-    assert player.can_play_free([[Resource.stone,Resource.ore]]) == True
-    assert player.can_play_free([[Resource.stone,Resource.wood]]) == True
-    assert player.can_play_free([[Resource.wood,Resource.ore]]) == True
-    assert player.can_play_free([[Resource.stone,Resource.stone]]) == False
+    assert player._can_play_free([[Resource.stone,Resource.ore]]) == True
+    assert player._can_play_free([[Resource.stone,Resource.wood]]) == True
+    assert player._can_play_free([[Resource.wood,Resource.ore]]) == True
+    assert player._can_play_free([[Resource.stone,Resource.stone]]) == False
     print("Choice tests passed")
 
     # test 3
     player.resources = []
     player.coins = 1
     player.chains = [ChainIcon.camel]
-    assert player.can_play_free([{"coins":1}]) == True
-    assert player.can_play_free([{"coins":1},[Resource.wood]]) == True
-    assert player.can_play_free([{"coins":2}]) == False
-    assert player.can_play_free([[ChainIcon.camel]]) == True
-    assert player.can_play_free([[ChainIcon.torch]]) == False
+    assert player._can_play_free([{"coins":1}]) == True
+    assert player._can_play_free([{"coins":1},[Resource.wood]]) == True
+    assert player._can_play_free([{"coins":2}]) == False
+    assert player._can_play_free([[ChainIcon.camel]]) == True
+    assert player._can_play_free([[ChainIcon.torch]]) == False
     print("Special tests passed")
 
     print("All solo tests passed")
@@ -393,10 +399,10 @@ def multiplayer_tests():
     player.resources = []
     left.resources = [[Resource.stone]]
     right.resources = [[Resource.wood]]
-    assert player.can_play_help([[Resource.stone]]) == [2,0]
-    assert player.can_play_help([[Resource.wood]]) == [0,2]
-    assert player.can_play_help([[Resource.stone,Resource.wood]]) == [2,2]
-    assert player.can_play_help([[Resource.ore]]) == False
+    assert player._can_play_help([[Resource.stone]]) == [2,0]
+    assert player._can_play_help([[Resource.wood]]) == [0,2]
+    assert player._can_play_help([[Resource.stone,Resource.wood]]) == [2,2]
+    assert player._can_play_help([[Resource.ore]]) == False
     print("Basic tests passed")
 
     # test 2
@@ -404,10 +410,19 @@ def multiplayer_tests():
     left.resources = [[Resource.stone]]
     right.resources = [[Resource.stone,Resource.wood]]
     player.symbols = [Symbols.basic_trade_left]
-    assert player.can_play_help([[Resource.stone]]) == [1,0]
-    assert player.can_play_help([[Resource.stone,Resource.stone]]) == [1,2]
-    assert player.can_play_help([[Resource.wood]]) == [0,2]
+    assert player._can_play_help([[Resource.stone]]) == [1,0]
+    assert player._can_play_help([[Resource.stone,Resource.stone]]) == [1,2]
+    assert player._can_play_help([[Resource.wood]]) == [0,2]
     print("Cost tests passed")
+
+    # test 3
+    player.resources = []
+    left.resources = [[Resource.stone,Resource.wood],[Resource.stone,Resource.wood]]
+    right.resources = []
+    player.symbols = []
+    assert player._can_play_help([[Resource.stone,Resource.stone]]) == [4,0]
+    print("Duplicate tests passed")
+
 
     print("All multiplayer tests passed")
 
