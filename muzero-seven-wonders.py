@@ -19,7 +19,7 @@ class MuZeroConfig:
         self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
         ### Game
-        self.observation_shape = (1, 7, 2)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.observation_shape = (1, 7, len(actions)+1)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(len(actions)))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(7))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
@@ -218,6 +218,12 @@ def cards_to_actions(cards):
         actions.append(cards.index(card.name))
     return actions
 
+def create_observation_space(buildings):
+    observation = numpy.zeros(len(actions))
+    for building in buildings:
+        observation[building] += 1
+    return numpy.ndarray.tolist(observation)
+
 class Seven_Wonders:
     def __init__(self, seed):
         self.seed = seed
@@ -320,12 +326,14 @@ class Seven_Wonders:
             to_append = []
             # for other players
             if not i == self.current_player:
-                to_append.append(cards_to_actions(self.get_player_hand(i)))
+                to_append = create_observation_space(cards_to_actions(self.get_player_hand(i)))
                 to_append.append(self.players[i].coins)
+                observation.append(to_append)
             # for you
             else:
-                your_board.append(cards_to_actions(self.players[i].buildings))
+                your_board = create_observation_space(cards_to_actions(self.players[i].buildings))
                 your_board.append(self.players[i].coins)
+        print(observation[0])
         observation.append(your_board)
         return [observation]
 
