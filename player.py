@@ -5,6 +5,19 @@ from collections import Counter
 def issubset(x, y): # is x a subset of y
     return not Counter(x)-Counter(y)
 
+def prepare(thing,option,addnone=False):
+    return [x for x in thing if x in option] + [None] if addnone else []
+            
+def clean(thing,option):
+    cleaned = []
+    for producer in thing:
+        if producer != [] and producer != [None]:
+            countsame = len([x for x in cleaned if x==producer])   # number of things that look just like this
+            maxsame = len([res for res in option if res in producer])
+
+            if countsame < maxsame: cleaned.append(producer)
+    return cleaned
+
 class Player:
     def __init__(self, name='Player', debug=False):
         self.board = [] # which board/wonder you have
@@ -144,7 +157,6 @@ class Player:
         self.victory_points += bluepoints
         return bluepoints
 
-
     def _can_play_free(self, cost):  # can we play it without buying from other players
         costoptions = copy.deepcopy(cost) # duplicates so we can fiddle with it
         if len(costoptions) == 0: return True
@@ -171,7 +183,7 @@ class Player:
 
             if len(option) > len(resourcesleft): return False # easy fast check
 
-            choiceresources = [x for x in resourcesleft if len(x)>1] # choice stuff
+            choiceresources = clean([x for x in resourcesleft if len(x)>1],option) # choice stuff
             permutations = [x for x in itertools.product(*choiceresources)] # for some reason need to generate this out
 
             if any(map(lambda x: issubset(option,x), permutations)): return True # wonky subset stuff
@@ -200,22 +212,9 @@ class Player:
                     resourcesleft.remove([ingredient])
                     option.remove(ingredient)
 
-            def prepare(thing,addnone=False):
-                return [x for x in thing if x in option] + [None] if addnone else []
-            
-            def clean(thing):
-                cleaned = []
-                for producer in thing:
-                    if producer != [] and producer != [None]:
-                        countsame = len([x for x in cleaned if x==producer])   # number of things that look just like this
-                        maxsame = len([res for res in option if res in producer])
-
-                        if countsame < maxsame: cleaned.append(producer)
-                return cleaned
-
-            choiceresources = clean([prepare(x) for x in resourcesleft if len(x)>1])
-            leftresources = clean([prepare(x,True) for x in self.left_neighbor.resources])
-            rightresources = clean([prepare(x,True) for x in self.right_neighbor.resources])
+            choiceresources = clean([prepare(x,option) for x in resourcesleft if len(x)>1],option)
+            leftresources = clean([prepare(x,option,True) for x in self.left_neighbor.resources],option)
+            rightresources = clean([prepare(x,option,True) for x in self.right_neighbor.resources],option)
 
             allavailableresources = set().union(*choiceresources,*leftresources,*rightresources)
             if not all([x in allavailableresources for x in option]): return False
