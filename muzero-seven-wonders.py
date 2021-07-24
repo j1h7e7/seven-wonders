@@ -295,7 +295,13 @@ class Seven_Wonders:
                 for i in range(self.num_players):
                     if not i == self.current_player:
                         total_points += self.players[i].calculate_victory_points()
-                reward = self.players[self.current_player].calculate_victory_points() - (total_points/(self.num_players-1))
+                reward = (self.players[self.current_player].calculate_victory_points() - (total_points/(self.num_players-1)))*50
+            else:
+                total_buildings = 0
+                for i in range(self.num_players):
+                    if not i == self.current_player:
+                        total_buildings += len(self.players[i].buildings)
+                reward = len(self.players[self.current_player].buildings) - (total_buildings/(self.num_players-1))
 
         # do observation space
         observation = self.get_observation()
