@@ -33,7 +33,7 @@ class MuZeroConfig:
         self.selfplay_on_gpu = False
         self.max_moves = 500  # Maximum number of moves if game is not finished before
         self.num_simulations = 40  # Number of future moves self-simulated
-        self.discount = 1  # Chronological discount of the reward
+        self.discount = 0.9746306992907622  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
 
         # Root prior exploration noise
@@ -50,22 +50,22 @@ class MuZeroConfig:
 
         # Residual Network
         self.downsample = False  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
-        self.blocks = 6  # Number of blocks in the ResNet
-        self.channels = 128  # Number of channels in the ResNet
-        self.reduced_channels_reward = 2  # Number of channels in reward head
-        self.reduced_channels_value = 2  # Number of channels in value head
-        self.reduced_channels_policy = 4  # Number of channels in policy head
-        self.resnet_fc_reward_layers = [64]  # Define the hidden layers in the reward head of the dynamic network
-        self.resnet_fc_value_layers = [64]  # Define the hidden layers in the value head of the prediction network
-        self.resnet_fc_policy_layers = [64]  # Define the hidden layers in the policy head of the prediction network
+        self.blocks = 2  # Number of blocks in the ResNet
+        self.channels = 32  # Number of channels in the ResNet
+        self.reduced_channels_reward = 32  # Number of channels in reward head
+        self.reduced_channels_value = 32  # Number of channels in value head
+        self.reduced_channels_policy = 32  # Number of channels in policy head
+        self.resnet_fc_reward_layers = [16]  # Define the hidden layers in the reward head of the dynamic network
+        self.resnet_fc_value_layers = [16]  # Define the hidden layers in the value head of the prediction network
+        self.resnet_fc_policy_layers = [16]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
         self.encoding_size = 32
-        self.fc_representation_layers = []  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [64]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [64]  # Define the hidden layers in the reward network
-        self.fc_value_layers = []  # Define the hidden layers in the value network
-        self.fc_policy_layers = []  # Define the hidden layers in the policy network
+        self.fc_representation_layers = [16]  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
+        self.fc_value_layers = [16]  # Define the hidden layers in the value network
+        self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
@@ -83,7 +83,7 @@ class MuZeroConfig:
         self.momentum = 0.9  # Used only if optimizer is SGD
 
         # Exponential learning rate schedule
-        self.lr_init = 0.002  # Initial learning rate
+        self.lr_init = 0.0031622776601683772  # Initial learning rate
         self.lr_decay_rate = 0.9  # Set it to 1 to use a constant learning rate
         self.lr_decay_steps = 10000
 
@@ -291,17 +291,18 @@ class Seven_Wonders:
             done = self.new_age()
             self.turn_num = 0
             if done:
-                total_points = 0
+                max_points = 0
                 for i in range(self.num_players):
                     if not i == self.current_player:
-                        total_points += self.players[i].calculate_victory_points()
-                reward = (self.players[self.current_player].calculate_victory_points() - (total_points/(self.num_players-1)))*50
-            else:
-                total_buildings = 0
-                for i in range(self.num_players):
-                    if not i == self.current_player:
-                        total_buildings += len(self.players[i].buildings)
-                reward = len(self.players[self.current_player].buildings) - (total_buildings/(self.num_players-1))
+                        if self.players[i].calculate_victory_points() > max_points:
+                            max_points = self.players[i].calculate_victory_points()
+                reward = 1 if self.players[self.current_player].calculate_victory_points() >= max_points else 0
+            # else:
+            #     total_buildings = 0
+            #     for i in range(self.num_players):
+            #         if not i == self.current_player:
+            #             total_buildings += len(self.players[i].buildings)
+            #     reward = len(self.players[self.current_player].buildings) - (total_buildings/(self.num_players-1))
 
         # do observation space
         observation = self.get_observation()
