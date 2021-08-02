@@ -274,7 +274,6 @@ class Seven_Wonders:
             self.current_player = 1
             self.turn_num = 6
             done = True
-            self.turn_num = 6
         else:
             # puts action into queue
             self.action_queue[self.current_player] = self.get_card_from_action(action)
