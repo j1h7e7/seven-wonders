@@ -244,6 +244,7 @@ class Seven_Wonders:
         self.direction = -1
         self.turn_num = 0
         self.action_queue = {}
+        self.done = False
         for i in range(self.num_players):
             self.players.append(Player())
 
@@ -265,44 +266,42 @@ class Seven_Wonders:
         self.new_age()
 
     def step(self, action):
-        observation = []
-        reward = 0
-        done = False
+        if self.done:
+            self.current_player = 1
+            self.turn_num = 6
+            done = True
+        else:
+            observation = []
+            reward = 0
+            done = False
 
-        # puts action into queue
-        self.action_queue[self.current_player] = self.get_card_from_action(action)
+            # puts action into queue
+            self.action_queue[self.current_player] = self.get_card_from_action(action)
 
-        # swap players
-        # if at the end of the players, play the turn
-        # play for other non-muzero players
-        self.current_player += 1
-        while not self.current_player == 0 and not self.current_player == 1:
-            # puts random action in queue for that player
-            self.action_queue[self.current_player] = self.get_card_from_action(self.random.choice(self.legal_actions()))
+            # swap players
+            # if at the end of the players, play the turn
+            # play for other non-muzero players
             self.current_player += 1
-            if self.current_player >= self.num_players:
-                self.current_player = 0
-                self.play_turn(self.action_queue)
-                self.turn_num += 1
-                break
+            while not self.current_player == 0 and not self.current_player == 1:
+                # puts random action in queue for that player
+                self.action_queue[self.current_player] = self.get_card_from_action(self.random.choice(self.legal_actions()))
+                self.current_player += 1
+                if self.current_player >= self.num_players:
+                    self.current_player = 0
+                    self.play_turn(self.action_queue)
+                    self.turn_num += 1
+                    break
 
         # see if end of age
         if self.turn_num == 6:
-            done = self.new_age()
             self.turn_num = 0
-            if done:
-                max_points = 0
+            if self.done or self.new_age():
+                total_points = 0
                 for i in range(self.num_players):
                     if not i == self.current_player:
-                        if self.players[i].calculate_victory_points() > max_points:
-                            max_points = self.players[i].calculate_victory_points()
-                reward = 1 if self.players[self.current_player].calculate_victory_points() >= max_points else 0
-            # else:
-            #     total_buildings = 0
-            #     for i in range(self.num_players):
-            #         if not i == self.current_player:
-            #             total_buildings += len(self.players[i].buildings)
-            #     reward = len(self.players[self.current_player].buildings) - (total_buildings/(self.num_players-1))
+                        total_points += self.players[i].calculate_victory_points()
+                reward = self.players[self.current_player].calculate_victory_points() - (self.num_players-1 / total_points)
+                self.done = True
 
         # do observation space
         observation = self.get_observation()
@@ -437,12 +436,14 @@ class Seven_Wonders:
         # put all cards (number representations) in which true is returned into an array and return it
         # sell card
         # can build wonder
-        legalactions = [0]
+        legalactions = []
         for card in self.get_player_hand(self.current_player):
             if self.players[self.current_player].can_play_card(card):
                 legalactions.append(actions.index(card.name))
         if self.players[self.current_player].can_upgrade_wonder():
             legalactions.append(1)
+        if len(legalactions) == 0:
+            legalactions = [0]
 
         return legalactions
 
@@ -461,6 +462,7 @@ class Seven_Wonders:
             print(self.players[i].buildings)
             print("and their hand is: ")
             print(self.get_player_hand(i))
+            print(f"and they have: {self.players[i].calculate_victory_points()} victory point(s)")
 
     def close(self):
         pass
