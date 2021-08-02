@@ -266,15 +266,16 @@ class Seven_Wonders:
         self.new_age()
 
     def step(self, action):
+        observation = []
+        reward = 0
+        done = False
+
         if self.done:
             self.current_player = 1
             self.turn_num = 6
             done = True
+            self.turn_num = 6
         else:
-            observation = []
-            reward = 0
-            done = False
-
             # puts action into queue
             self.action_queue[self.current_player] = self.get_card_from_action(action)
 
@@ -392,12 +393,14 @@ class Seven_Wonders:
         for player in self.players:
             player.resolve_effect()
 
-    # returns true of game is ended
+    # returns true if game is ended
     def new_age(self):
-        if self.setting_up:
-            deck = self.dealer.get_deck(self.num_players, 1)
-        else:
-            deck = self.dealer.get_deck(self.num_players, self.current_age)
+        self.current_age += 1
+
+        if self.current_age == 4:
+            return True
+
+        deck = self.dealer.get_deck(self.num_players, self.current_age)
         self.hands = [[] for _ in range(self.num_players)]
         self.random.shuffle(deck)
 
@@ -406,13 +409,11 @@ class Seven_Wonders:
 
         if not self.setting_up:
             self.do_military(self.current_age)
-
-        self.current_age += 1
-
-        self.direction = (1 if self.current_age == 2 else -1)
         self.setting_up = False
 
-        return self.current_age == 4
+        self.direction = (1 if self.current_age == 2 else -1)
+
+        return False
 
     def to_play(self):
         """
