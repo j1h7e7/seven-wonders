@@ -300,7 +300,7 @@ class Seven_Wonders:
                 for i in range(self.num_players):
                     if not i == self.current_player:
                         total_points += self.players[i].calculate_victory_points()
-                reward = self.players[self.current_player].calculate_victory_points() - (self.num_players-1 / total_points)
+                reward = self.players[self.current_player].calculate_victory_points() - (total_points / (self.num_players-1))
                 self.done = True
 
         # do observation space
